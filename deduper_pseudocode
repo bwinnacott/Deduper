@@ -109,10 +109,10 @@ Run the main program:
             -if different, set new variable, clear contents of dictionary storing info
             -if same chromosome, continue
         -initiate variables to store current UMI ('extract_UMI') and whether the current read maps as the reverse complement to the reference 
-        ('check_strand'); if UMI does not exist (due to errors), discard and continue
+        ('check_strand'); if UMI does not exist (due to errors), write out to appropriate file and continue
         -get the adjusted 5' mapping position based on the cigar string ('check_clipping') and assign to new variable
         -check if (adjusted_position, strand) tuple is already found as value in appropriate key (UMI) in 'possible_UMIs' dictionary:
-            -if so, continue to next read
+            -if so, write out to appropriate file and continue to next read
             -else, add tuple to correct UMI key in dictionary and write record out to output file; continue to next read
 
 Outputs:
