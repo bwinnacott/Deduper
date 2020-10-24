@@ -100,7 +100,7 @@ def write_output(read_content,output_fh):
 Run the main program:
 
 -using 'possible_UMIs', initiate dictionary to store mapping info
--open SAM file in read mode and open output file for writing out to:
+-open SAM file in read mode and open output files (3; see 'Outputs' section below) for writing out to:
     -initiate counts for number of duplicates removed
     -initiate variable to 'None' for current chromosome/scaffold
     -iterate through each line in the file, ignoring header lines if present (i.e., lines staring with '@'):
@@ -114,6 +114,12 @@ Run the main program:
         -check if (adjusted_position, strand) tuple is already found as value in appropriate key (UMI) in 'possible_UMIs' dictionary:
             -if so, continue to next read
             -else, add tuple to correct UMI key in dictionary and write record out to output file; continue to next read
+
+Outputs:
+
+-SAM file containing deduped reads (first encountered)
+-SAM file containing identified PCR duplicates
+-SAM file containing reads with sequencing errors in UMI
 
 Considerations:
 
