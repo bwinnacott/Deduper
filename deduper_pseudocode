@@ -1,0 +1,125 @@
+DEDUPER PSEUDOCODE ASSIGNMENT
+
+PROBLEM: 
+
+Prior to running a sequencing experiment (on an Illumina sequencer for example), PCR amplification 
+is necessary to generate multiple copies of the DNA fragments of interest in order to obtain enough sample 
+to sufficiently measure on the sequencer. The nature of the amplification step could result in interpretation 
+bias for a number of different downstream analyses such as genome assembly, RNA-Seq differential expression, 
+identifying polymorphisms, etc. For example, the presence of PCR duplicates during genome assembly can affect the 
+overall coverage for certain DNA fragments which might influence what gets aligned and what gets tossed during 
+the normalization or filtering steps. In RNA-Seq, the presence of PCR duplicates can bias our interpretation of 
+expression levels within a sample under a certain treatment or set of conditions. Therefore, it is necessary 
+to remove these duplicates prior to a broad range of genetic analyses. For this project, the goal is to write 
+a tool that will perform Reference Based PCR Duplicate Removal from a file containing uniquely mapped reads, 
+aka SAM file. To accomplish this, a few pieces of information will need to be extracted from the mapped reads in 
+the SAM file and compared in an efficient manner (Samtools 'sort'): 1) alignment position (chrom., position, 
+strand), 2) CIGAR string (for soft clipping check), and 3) unique molecular index (UMI). This tool will (eventually) 
+be written to accommodate both single and paired end sequencing experiments, and will keep only one copy of each 
+read in a separate file (method TBD). 
+
+It is assumed the Samtools 'sort' function (or other similar tool) will be used to sort the input SAM file based on 
+leftmost coordinates, so mapped reads can be compared one after another without having to store an extensive amount 
+of information into memory. 
+
+PSEUDOCODE (written for single end data, with known UMIs, and first duplicate chosen as representative read):
+
+Imports:
+
+-argparse
+-re
+-defaultdict
+
+Functions:
+
+def possible_UMIs(filename):
+    '''Function that takes in a filename consisting of a list of unique molecular indexes (UMIs) and generates a dictionary 
+    from the list. This dictionary represents all the possible UMIs present in the experiment.'''
+    -initiate new empty default dictionary (list)
+    -open filehandle to parse through file of UMIs
+    -add each UMI to the dictionary as a key, with empty list as values
+    -return dictionary
+
+    "Test: 
+    Input: ACTGGATC
+           GTCAGAGA
+           TTAGCAAG
+    Output: {'ACTGGATC': [], 'GTCAGAGA': [], 'TTAGCAAG': []}
+
+def extract_UMI(qname):
+    '''Function that takes in read name as input and returns the UMI contained within.'''
+    -split 'qname' based on separator (':')
+    -return the last element in the split list
+
+    "Test:
+    Input: NS500451:154:HWKTMBGXX:1:11101:20566:1080:TATAGCGC
+    Expected output: TATAGCGC"
+
+def check_strand(flag):
+    '''Function that takes in bitwise flag (integer) and returns whether current read mapped as reverse complement to reference.'''
+    --use bitwise and ('&') to check if bit position five (0x16) is set
+    -return True if reverse complement mapped, else False
+
+    "Test:
+    Input: 149
+    Expected output: True"
+
+def check_clipping(cigar,reverse=False):
+    '''Function that takes in a read's cigar string and returns the number for which the reads leftmost mapping position should be shifted, 
+    depending on the reference strand to which the read mapped.'''
+    -use 're' to get integers associated with each cigar operation
+    -if forward mapping, return the first soft clipping integer
+    -if reverse mapping, initiate variable to 0 to store cigar operation integers
+    -iterate through list of tuples containing (integer,operation) pair and add integers for any M's, N's, D's, and last S to variable; 
+    return variable
+
+    "Test:
+    Input: 3S67M (forward)
+    Expected output: 3
+    Input: 3S200N65M2S (reverse)
+    Expected output: 267"
+
+def check_position(left_pos,cigar,reverse=False):
+    '''Function that takes in leftmost mapping position, cigar string, and boolean indicating the strand to which the read mapped and returns 
+    the adjusted position.'''
+    -if forward, subtract value from check_clipping(cigar) from left_pos and return adjusted 5' mapping position
+    -if reverse, add value from check_clipping(cigar,reverse=True) to left_pos (subtract 1?) and return adjusted 
+
+    "Test:
+    Input: 1000, 2S68M
+    Expected output: 998
+    Input: 1000, 2S65M3S, reverse=True
+    Expected output: 1068"
+
+def write_output(read_content,output_fh):
+    '''Function that takes in the full content of a single read and writes it out to a new file, referenced from 'output_fh'.'''
+    -join the contents of the list, tab separated
+    -write the joined object to filehandle ('output_fh')
+    -returns nothing, only updates file
+
+Run the main program:
+
+-using 'possible_UMIs', initiate dictionary to store mapping info
+-open SAM file in read mode and open output file for writing out to:
+    -initiate counts for number of duplicates removed
+    -initiate variable to 'None' for current chromosome/scaffold
+    -iterate through each line in the file, ignoring header lines if present (i.e., lines staring with '@'):
+        -store contents of current read in new list object
+        -update chromosome/scaffold variable with current (only if different than previous):
+            -if different, set new variable, clear contents of dictionary storing info
+            -if same chromosome, continue
+        -initiate variables to store current UMI ('extract_UMI') and whether the current read maps as the reverse complement to the reference 
+        ('check_strand')
+        -get the adjusted 5' mapping position based on the cigar string ('check_clipping') and assign to new variable
+        -check if (adjusted_position, strand) tuple is already found as value in appropriate key (UMI) in 'possible_UMIs' dictionary:
+            -if so, continue to next read
+            -else, add tuple to correct UMI key in dictionary and write record out to output file; continue to next read
+
+Considerations:
+
+-although only storing a portion of the information (adjusted postion, strand designation) for the mapped reads one chromosome at a time, 
+this will still require a ton of memory
+-will look to incorporate some kind of window to search for duplicates, removing obsolete information where a duplicate for an older read 
+given the current position is impossible
+-incorporating different methods for selecting a read from a set of duplicates (i.e., best quality, best mapping, etc.) will require a 
+tweak to the current approach
