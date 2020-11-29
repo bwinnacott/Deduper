@@ -7,33 +7,33 @@ import subprocess
 import random
 import shutil
 
-def possible_UMIs(UMI_file):
+def possible_umis(umi_file):
     '''Function that takes in a filename consisting of a list of unique molecular indexes (UMIs) and generates a dictionary 
     from the list. This dictionary represents all the possible UMIs present in the experiment.'''
     # initiate dictionary to store UMIs; open UMI file
-    UMI_dict = {}
-    UMIs = open(UMI_file,'r')
+    umi_dict = {}
+    umis = open(umi_file,'r')
     # iterate over lines in file and store UMIs in UMI_dict
-    for line in UMIs:
+    for line in umis:
         line = line.strip()
-        UMI_dict[line] = []
+        umi_dict[line] = []
     # keys: UMIs; values: empty lists
-    return UMI_dict
+    return umi_dict
 
-def error_correct_UMI(UMI,UMI_dict):
+def error_correct_umi(curr_umi,umi_dict):
     '''Function designed to perform error correction on a given UMI that is only 1 nt in Hamming distance away from 
     only 1 UMI contained within the list of known UMIs in UMI_dict. If more than one UMI in UMI_dict have a Hamming 
     distance of 1, then the UMI is not corrected.'''
     # initiate variable to store possible corrected UMI
-    poss_UMI = None
+    poss_umi = None
     # iterate over all known UMIs and initiate Hamming distance variable
-    for umi in UMI_dict:
+    for umi in umi_dict:
         hamm_dist = 0
         # iterate over all nt in UMI of interest
-        for i in range(len(UMI)):
+        for i in range(len(curr_umi)):
             # check for mismatched nts; if more than two are present for current UMI in 
             # UMI_dict, then move to next UMI
-            if UMI[i] != umi[i]:
+            if curr_umi[i] != umi[i]:
                 hamm_dist += 1
                 if hamm_dist > 1:
                     break
@@ -41,16 +41,16 @@ def error_correct_UMI(UMI,UMI_dict):
         if hamm_dist > 1:
             continue
         # if current UMI in UMI_dict has Hamming distance of 1, assign to variable
-        if poss_UMI is None:
-            poss_UMI = umi
+        if poss_umi is None:
+            poss_umi = umi
         # if UMI is already assigned, no longer error correct
         else:
             raise KeyError
     # account for no change in variable or return the only UMI in UMI_dict with Hamming distance of 1
-    if poss_UMI is None:
+    if poss_umi is None:
         raise KeyError
     else:
-        return poss_UMI
+        return poss_umi
 
 def check_strand(flag):
     '''Function that takes in bitwise flag (integer) and returns whether current read mapped as reverse complement to reference.'''
@@ -195,15 +195,15 @@ def open_files(input_file):
     # return file handles
     return deduped_fh,duplicate_fh,errors_fh
 
-def deduplicate_reads(input_file,UMI_file,deduped_fh,duplicate_fh,errors_fh,error_correct,method):
+def deduplicate_reads(input_file,umi_file,deduped_fh,duplicate_fh,errors_fh,error_correct,method):
     '''Main function to deduplicate reads from an input SAM file. Also takes as arguments the UMI file specified at the 
     command line, the method for which to select a read from a group of duplicates, and the three file handles for 
     writing out to.'''
     # open the input SAM file and initiate some variables collecting program stats
     with open(input_file,'r') as fh:
-        total_reads,num_deduped,num_duplicates,num_UMIerrors,num_error_corr = 0,0,0,0,0
+        total_reads,num_deduped,num_duplicates,num_umierrors,num_error_corr = 0,0,0,0,0
         # create dictionary with list of known UMIs; variable denoting current strand; dictionary to hold read group info
-        poss_UMIs = possible_UMIs(UMI_file)
+        poss_umis = possible_umis(umi_file)
         reverse = False
         # second dictionary to hold read info; keys: (UMI,adj position) tuples, vals: list of lists containing read content
         read_groups = defaultdict(list)
@@ -215,7 +215,7 @@ def deduplicate_reads(input_file,UMI_file,deduped_fh,duplicate_fh,errors_fh,erro
             if check_strand(current_read[1]) and not reverse:
                 reverse = True
                 # reset dictionaries
-                poss_UMIs = possible_UMIs(UMI_file)
+                poss_umis = possible_umis(umi_file)
                 # write out all remaining reads in the 'read_groups' dict
                 if method:
                     total_dedup,total_duplic = write_out_reads(read_groups,method,deduped_fh,duplicate_fh)
@@ -224,53 +224,53 @@ def deduplicate_reads(input_file,UMI_file,deduped_fh,duplicate_fh,errors_fh,erro
                 # reset dictionary to capture reads mapping to reverse strand
                 read_groups = defaultdict(list)
             # get current UMI and check if it is known
-            current_UMI = current_read[0].split(':')[-1]
-            if current_UMI not in poss_UMIs:
+            current_umi = current_read[0].split(':')[-1]
+            if current_umi not in poss_umis:
                 # correct if specified at command line
                 if error_correct:
                 # if unknown, try to error correct
                     try:
-                        current_UMI = error_correct_UMI(current_UMI,poss_UMIs)
+                        current_umi = error_correct_umi(current_umi,poss_umis)
                         num_error_corr += 1
                     # if error correction fails, write out to file containing UMI error reads; increment stat and move to next read
                     except:
                         errors_fh.write('\t'.join(current_read))
-                        num_UMIerrors += 1
+                        num_umierrors += 1
                         continue
                 else:
                     errors_fh.write('\t'.join(current_read))
-                    num_UMIerrors += 1
+                    num_umierrors += 1
                     continue
             # get the adjusted position of current read
             adjusted_position = check_position(current_read[3],current_read[5],reverse=reverse)
             # check if adjusted position is in dictionary
-            if adjusted_position in poss_UMIs[current_UMI]:
+            if adjusted_position in poss_umis[current_umi]:
                 # if user wants first read chosen from group of duplicates, write out as duplicate
                 if not method:
                     duplicate_fh.write('\t'.join(current_read))
                     num_duplicates += 1
                 # if other method selected, record read information
                 else:
-                    read_groups[(current_UMI,adjusted_position)].append(current_read)
+                    read_groups[(current_umi,adjusted_position)].append(current_read)
             # add the current adjusted position to UMI dict at appropriate key
             else:
-                poss_UMIs[current_UMI].append(adjusted_position)
+                poss_umis[current_umi].append(adjusted_position)
                 # if user wants first read chosen from group of duplicates, write out a deduped read
                 if not method:
                     deduped_fh.write('\t'.join(current_read))
                     num_deduped += 1
                 # if other method selected, record read information
                 else:
-                    read_groups[(current_UMI,adjusted_position)].append(current_read)
+                    read_groups[(current_umi,adjusted_position)].append(current_read)
         # this code chunk accounts for the set of reverse reads stored after the entire file is parsed through
         if method:
             total_dedup,total_duplic = write_out_reads(read_groups,method,deduped_fh,duplicate_fh)
             num_deduped += total_dedup
             num_duplicates += total_duplic
     # return the stats
-    return total_reads,num_deduped,num_duplicates,num_UMIerrors,num_error_corr
+    return total_reads,num_deduped,num_duplicates,num_umierrors,num_error_corr
 
-def generate_stats(total_reads,num_deduped,num_duplicates,num_UMIerrors,num_error_corr):
+def generate_stats(total_reads,num_deduped,num_duplicates,num_umierrors,num_error_corr):
     '''Function that takes in all stats recorded throughout this program and spits out a report.'''
     # open the output file and write stats out
     with open('deduper_stats.txt','w') as f:
@@ -279,8 +279,8 @@ def generate_stats(total_reads,num_deduped,num_duplicates,num_UMIerrors,num_erro
         f.write('Percent of total reads that are deduplicated: ' + str(round((num_deduped/total_reads)*100,3)) + '%' + '\n')
         f.write('Number of duplicate reads: ' + str(num_duplicates) + '\n')
         f.write('Percent of total reads that are duplicates: ' + str(round((num_duplicates/total_reads)*100,3)) + '%' + '\n')
-        f.write('Number of reads with UMI errors: ' + str(num_UMIerrors) + '\n')
-        f.write('Percent of total reads that have UMI errors: ' + str(round((num_UMIerrors/total_reads)*100,3)) + '%' + '\n')
+        f.write('Number of reads with UMI errors: ' + str(num_umierrors) + '\n')
+        f.write('Percent of total reads that have UMI errors: ' + str(round((num_umierrors/total_reads)*100,3)) + '%' + '\n')
         f.write('Number of UMI corrected reads: ' + str(num_error_corr) + '\n')
         f.write('Percent of total reads that are UMI corrected: ' + str(round((num_error_corr/total_reads)*100,3)) + '%' + '\n')
 
@@ -309,23 +309,23 @@ def main():
         parser.error('Current build of the program requires a file containing a list of known UMIs. Rerun with file of known UMIs specified with -u flag.')
     # run the program; first open files for writing out to
     deduped_fh,duplicate_fh,errors_fh = open_files(args.file)
-    total_reads,num_deduped,num_duplicates,num_UMIerrors,num_error_corr = 0,0,0,0,0
+    total_reads,num_deduped,num_duplicates,num_umierrors,num_error_corr = 0,0,0,0,0
     # iterate over the list of chromosomes and create temporary files sorted by strand
     print('...generating bam files...')
     for x in get_chroms(args.file):
         print('...starting chromosome {}...'.format(x))
         subprocess.run(['bash/generate_temp_files.sh','bam_input_sorted.bam','deduper_temp',x],stdout=subprocess.PIPE)
         # deduplicate the reads in each temp file and gather stats
-        total,deduped,duplicates,UMIerrors,corrected = deduplicate_reads('deduper_temp/chrom_{}.txt'.format(x),args.umi,deduped_fh,duplicate_fh, \
+        total,deduped,duplicates,umierrors,corrected = deduplicate_reads('deduper_temp/chrom_{}.txt'.format(x),args.umi,deduped_fh,duplicate_fh, \
             errors_fh,args.error_correct_umis,args.method)
         total_reads += total
         num_deduped += deduped
         num_duplicates += duplicates
-        num_UMIerrors += UMIerrors
+        num_umierrors += umierrors
         num_error_corr += corrected
         print('...finished deduplicating chromosome {}.'.format(x))
     # create stats report
-    generate_stats(total_reads,num_deduped,num_duplicates,num_UMIerrors,num_error_corr)
+    generate_stats(total_reads,num_deduped,num_duplicates,num_umierrors,num_error_corr)
     # close all output files
     for f in [deduped_fh,duplicate_fh,errors_fh]:
         f.close()
