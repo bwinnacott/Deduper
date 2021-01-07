@@ -5,7 +5,7 @@ The goal of this tool is to perform reference-based PCR duplicate removal. For a
 SAM file, all PCR duplicates are removed so that only a single copy of each read is retained 
 (default is first read encountered). Currently, the tool only accepts single-end, uniquely 
 mapped reads as input. Additionally, a separate file containing a list of known UMIs is required 
-to confirm the identity of duplicate reads. 
+to confirm the identity of duplicate reads (see *STL96.txt* for an example format). 
 
 The program utilizes ```samtools``` to produce an intermediate SAM file sorted by mapping position, 
 which is then broken up into subsequent temporary files by chromosome. Sets of reads mapped to 
