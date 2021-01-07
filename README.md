@@ -8,8 +8,8 @@ mapped reads as input. Additionally, a separate file containing a list of known 
 to confirm the identity of duplicate reads. 
 
 ## Requirements
-- ```Python v3```
-- ```Samtools```
+- Python v3
+- Samtools
 
 ## Output Files
 Three output files are generated from this tool:
