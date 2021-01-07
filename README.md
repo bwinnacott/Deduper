@@ -7,6 +7,12 @@ SAM file, all PCR duplicates are removed so that only a single copy of each read
 mapped reads as input. Additionally, a separate file containing a list of known UMIs is required 
 to confirm the identity of duplicate reads. 
 
+The program utilizes ```samtools``` to produce an intermediate SAM file sorted by mapping position, 
+which is then broken up into subsequent temporary files by chromosome. Sets of reads mapped to 
+a given chromosome are then sorted by strand to reduce the overall number of reads stored in 
+memory. At the end of each chromosome, temporary files are deleted and created again in a temporary 
+directory. 
+
 ## Requirements
 - Python v3
 - Samtools
